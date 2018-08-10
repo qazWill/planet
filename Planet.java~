@@ -1,0 +1,198 @@
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+public class Planet extends JFrame {
+
+	// the current recursive level
+	private double z;
+	private double xCenter;
+	private double yCenter;
+	private boolean showMark;
+	private double rate;
+
+	// double buffer images
+	Image dbImage;
+	Graphics dbg;
+
+	// constructer
+	public Planet() {
+		rate = 0.1;
+		xCenter = 400;
+		yCenter = 250;
+		z = 1.0;
+		showMark = false;
+		setTitle("Koch Curve Magnification");
+		setSize(800, 600);
+		setResizable(false);
+		setVisible(true);
+		setBackground(Color.WHITE);
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		addKeyListener(new AL());
+		addMouseMotionListener(new ML());
+	}
+
+	public class AL extends KeyAdapter {
+		public void keyReleased(KeyEvent e) {
+			int keyCode = e.getKeyCode();
+			if (keyCode == e.VK_S) {
+				z = (1.0 - rate) * z;
+				if (z < 1.0) {
+					z = 1.0;
+				}
+				repaint();
+			}
+			if (keyCode == e.VK_W) {
+				z = (1.0 + rate) * z;
+				if (z > 1000000000.00) {
+					z = 1000000000.00;
+				}
+				repaint();
+			}
+			if (showMark) {
+				if (keyCode == e.VK_LEFT) {
+					xCenter -= 1 / z;
+					repaint();
+				}
+				if (keyCode == e.VK_RIGHT) {
+					xCenter += 1 / z;
+					repaint();
+				}
+				if (keyCode == e.VK_UP) {
+					yCenter -= 1 / z;
+					repaint();
+				}
+				if (keyCode == e.VK_DOWN) {
+					yCenter += 1 / z;
+					repaint();
+				}
+			}
+			if (keyCode == e.VK_H) {
+				System.out.println(xCenter + ", " + yCenter);
+				showMark = !showMark;
+				repaint();
+			}
+		}
+	}
+	
+	public class ML extends MouseAdapter {
+        /*public void motion(MouseEvent event) {			
+            x = x + ((-x + event.getX()) / z);
+            y = y + ((-y + event.getY()) / z);
+            repaint();
+        }*/
+    }
+
+	public void paint(Graphics g) {
+		dbImage = createImage(getWidth(), getHeight());
+		dbg = dbImage.getGraphics();
+		dbg.setFont(new Font("Arial", 0, 12));
+		//dbg.drawString(String.format("%40.2f", z) + " times magnification", 10, 20);
+		drawPlanetMagnified(z, 400, 300, 50, dbg);
+		if (showMark) {
+			dbg.setColor(Color.RED);
+			dbg.fillRect((int)xCenter - 2, (int)yCenter - 2, 5, 5);
+		}
+		double cm = 10 * (500000000 / z);
+		String string;
+		if (cm < 100) {
+			dbg.drawString(String.format("%40.2f", cm) + " centimeters", 10, 485);
+		} else if (cm < 100000) {
+			dbg.drawString(String.format("%40.2f", (cm / 100)) + " meters", 10, 485);
+		} else {
+			dbg.drawString(String.format("%40.2f", (cm / 100000)) + " kilometers", 10, 485);
+		}
+		dbg.drawLine(100, 500, 700, 500);
+		dbg.drawLine(100, 490, 100, 510);
+		dbg.drawLine(700, 490, 700, 510);
+		g.drawImage(dbImage, 0, 0, this);
+	}
+
+	public void drawPlanetMagnified(double zoom, double xPlanet, double yPlanet, double radius, Graphics g) {
+		double range = 0.01;
+		xPlanet = xCenter - zoom * (xCenter - xPlanet);
+		yPlanet = yCenter - zoom * (yCenter - yPlanet);
+		radius = zoom * radius;
+		drawLine(0, range, xPlanet, yPlanet - radius, xPlanet + radius, yPlanet, xPlanet, yPlanet, g);
+		drawLine(0, range, xPlanet + radius, yPlanet, xPlanet, yPlanet + radius, xPlanet, yPlanet, g);
+		drawLine(0, range, xPlanet, yPlanet + radius, xPlanet - radius, yPlanet, xPlanet, yPlanet, g);
+		drawLine(0, range, xPlanet - radius, yPlanet, xPlanet, yPlanet - radius, xPlanet, yPlanet, g);
+	}
+	
+	public void drawLine(double depth, double range, double xA, double yA, double xB, double yB, double xP, double yP, Graphics g) {
+
+		//System.out.println(range);
+		if (Math.sqrt(Math.pow(xB - xA, 2) + Math.pow(yB - yA, 2)) <= 2) {
+			g.drawLine((int)xA, (int)yA, (int)xB, (int)yB);
+		} else {
+
+			// finds average radius
+			double averageRadius = Math.sqrt(Math.pow(xA - xP, 2) + Math.pow(yA - yP, 2));
+			averageRadius += Math.sqrt(Math.pow(xB - xP, 2) + Math.pow(yB - yP, 2));
+			averageRadius /= 2;
+			
+			// finds midpoint
+			double xM = (xA + xB) / 2.0;
+			double yM = (yA + yB) / 2.0;
+
+			// finds normalalized vector of (the midpoint - the planet)
+			double distance = Math.sqrt(Math.pow(xM - xP, 2) + Math.pow(yM - yP, 2));
+			double xN = (xM - xP) / distance;
+			double yN = (yM - yP) / distance;
+			
+			// displaces the new height
+			double percent = noise(xN, yN);
+			double displacedRadius = averageRadius + percent * range * averageRadius;
+			double xNew = xP + (displacedRadius * xN);
+			double yNew = yP + (displacedRadius * yN);
+			
+			if (inside(xA, yA, xB, yB)) { // if outside of view, may be ignored
+				drawLine(depth + 1, range / 1.75, xA, yA, xNew, yNew, xP, yP, g);
+				drawLine(depth + 1, range / 1.75, xNew, yNew, xB, yB, xP, yP, g);
+			}
+		}
+	}
+
+	public boolean inside(double xA, double yA, double xB, double yB) {
+		double xMin = xA;
+		if (xB < xMin) {
+			xMin = xB;
+		}
+
+		double xMax = xA;
+		if (xB > xMax) {
+			xMax = xB;
+		}
+
+		double yMax = yA;
+		if (yB > yMax) {
+			yMax = yB;
+		}
+
+		double yMin = yA;
+		if (yB < yMin) {
+			yMin = yB;
+		}
+
+		if (xMax < 0 || xMin > 800 || yMax < 0 || yMin > 600) {
+			return false;
+		}
+		return true;
+	}
+
+	public double noise(double x, double y) {
+		//return ((2 * ((x*x*y * 49827837) % 1000000)) / 1000000) - 1;
+		x -= 2673.582017;
+		y += 954.1399023;
+		return Math.sin(x * y * 8893017.727);
+	}
+
+	public static void main(String[] args) {
+		Planet planet = new Planet();
+	}
+}
+
+
+
+
+
